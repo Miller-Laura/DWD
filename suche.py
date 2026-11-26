@@ -19,8 +19,7 @@ def _stationen_laden(von=None, bis=None):
     parameter = []
     if von and bis:
         # Datum in der DB: JJJJMMTT, deshalb die Bindestriche weg
-        sql += " WHERE von_datum <= ? AND bis_datum >= ?" #überschneidung prüfen, wenn der eine
-# beginnt, bevor der andere endet, und umgekehrt.
+        sql += " WHERE von_datum <= ? AND bis_datum >= ?" #überschneidung prüfen, wenn der eine # beginnt, bevor der andere endet, und umgekehrt.
         parameter = [bis.replace("-", ""), von.replace("-", "")]
     verbindung = sqlite3.connect(DB_DATEI)
     zeilen = verbindung.execute(sql, parameter).fetchall()

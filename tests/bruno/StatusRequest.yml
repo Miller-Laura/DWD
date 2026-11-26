@@ -1,0 +1,25 @@
+info:
+  name: StatusRequest
+  type: http
+  seq: 6
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/status"
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Datenbank erreichbar, Stationen importiert", function () {
+          expect(res.body.status).to.equal("ok");
+          expect(res.body.importiert).to.be.greaterThan(1000);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

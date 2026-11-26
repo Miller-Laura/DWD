@@ -1,0 +1,40 @@
+info:
+  name: Tageswerte
+  type: http
+  seq: 10
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/auswertung?ort=Iserlohn&von=2010-01-01&bis=2010-01-31&stufe=tag&radius=15"
+  params:
+    - name: ort
+      value: Iserlohn
+      type: query
+    - name: von
+      value: 2010-01-01
+      type: query
+    - name: bis
+      value: 2010-01-31
+      type: query
+    - name: stufe
+      value: tag
+      type: query
+    - name: radius
+      value: "15"
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("etwa 31 Tageswerte", function () {
+          expect(res.body.zeilen.length).to.be.greaterThan(25);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://127.0.0.1:5000/api/auswertung?ort=Iserlohn&von=2020-13-45&bis=2021-01-01&stufe=jahr
+  url: "{{baseUrl}}/api/auswertung?ort=Iserlohn&von=2020-13-45&bis=2021-01-01&stufe=jahr"
   params:
     - name: ort
       value: Iserlohn

@@ -1,0 +1,43 @@
+info:
+  name: Jahreszeit
+  type: http
+  seq: 11
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/auswertung?ort=Iserlohn&von=2010-01-01&bis=2010-12-31&stufe=monat&zeitfenster=sommer&radius=15"
+  params:
+    - name: ort
+      value: Iserlohn
+      type: query
+    - name: von
+      value: 2010-01-01
+      type: query
+    - name: bis
+      value: 2010-12-31
+      type: query
+    - name: stufe
+      value: monat
+      type: query
+    - name: zeitfenster
+      value: sommer
+      type: query
+    - name: radius
+      value: "15"
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("nur Juni, Juli, August", function () {
+          expect(res.body.zeilen.length).to.equal(3);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

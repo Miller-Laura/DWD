@@ -11,7 +11,7 @@ from suche import stationen_fuer_ort
 
 app = Flask(__name__)
 
-JAHRESZEITEN = {
+JAHRESZEITEN = { #die Monate zu den jahreszeiten zugewiesen
     "fruehling": [3, 4, 5], "sommer": [6, 7, 8],
     "herbst": [9, 10, 11], "winter": [12, 1, 2],
 }
@@ -121,6 +121,16 @@ def api_auswertung():
                     "laenge": s[4], "temp": werte.get(s[1])} for s in stationen],
         zeilen=zeilen,
     )
+@app.route("/api/status")
+def api_status():
+    try:
+        verbindung = sqlite3.connect(DB_DATEI)
+        stationen = verbindung.execute("SELECT COUNT(*) FROM station").fetchone()[0]
+        importiert = verbindung.execute("SELECT COUNT(*) FROM importiert").fetchone()[0]
+        verbindung.close()
+    except sqlite3.Error:
+        return jsonify(status="fehler"), 500
+    return jsonify(status="ok", stationen=stationen, importiert=importiert)
 
 
 if __name__ == "__main__":

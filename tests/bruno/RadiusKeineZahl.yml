@@ -1,0 +1,40 @@
+info:
+  name: RadiusKeineZahl
+  type: http
+  seq: 7
+
+http:
+  method: GET
+  url: "{{baseUrl}}/api/auswertung?ort=Iserlohn&von=2000-01-01&bis=2001-01-01&stufe=jahr&radius=abc"
+  params:
+    - name: ort
+      value: Iserlohn
+      type: query
+    - name: von
+      value: 2000-01-01
+      type: query
+    - name: bis
+      value: 2001-01-01
+      type: query
+    - name: stufe
+      value: jahr
+      type: query
+    - name: radius
+      value: abc
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Fehlermeldung zum Umkreis", function () {
+          expect(res.body.fehler).to.contain("Umkreis");
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

@@ -5,10 +5,10 @@ info:
 
 http:
   method: GET
-  url: http://127.0.0.1:5000/api/auswertung?ort=Witten Heven&von=2010-12-01&bis=2011-11-30&stufe=monat&radius=15
+  url: "{{baseUrl}}/api/auswertung?ort=Witten Heven&von=2010-12-01&bis=2011-11-30&stufe=monat&radius=15"
   params:
     - name: ort
-      value: Witten%20Heven
+      value: Witten Heven
       type: query
     - name: von
       value: 2010-12-01

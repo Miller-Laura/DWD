@@ -2,12 +2,14 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DWD Wetterauswertung</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='leaflet/leaflet.css') }}">
   <script src="{{ url_for('static', filename='leaflet/leaflet.js') }}"></script>
   <script src="{{ url_for('static', filename='chart.umd.js') }}"></script>
   <style>
     body { margin: 0; background: #97a3b6; font-family: sans-serif; color: #111; }
+    .nur-screenreader { position: absolute; left: -9999px; }
     .seite { display: grid; grid-template-columns: 300px 1fr; gap: 24px; padding: 24px; }
     h2 { text-align: center; text-decoration: underline; margin: 0 0 18px; }
     .daten { background: #cfdffa; border-radius: 36px; padding: 24px; align-self: start; }
@@ -15,10 +17,14 @@
     .daten input[type=text], .daten input[type=date], .daten input[type=number], .daten select {
       width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px;
       border: 0; border-bottom: 2px solid #111; background: transparent; font-size: 15px; }
+    .gruppe { border: 0; padding: 0; margin: 0 0 16px; }
+    .gruppe legend { font-size: 15px; padding: 0; }
     .radios { display: flex; justify-content: space-between; margin-top: 6px; font-size: 14px; }
     .radios label { display: inline; margin: 0; }
     button { width: 100%; padding: 10px; border: 0; border-radius: 12px; background: #3b5fa8;
              color: #fff; font-size: 16px; cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 3px solid #111; outline-offset: 2px; }
     .ergebnis { background: #b8cbea; border-radius: 16px; padding: 16px 24px; min-height: 90px; }
     .ergebnis h2 { margin-bottom: 8px; }
     .kacheln { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
@@ -38,24 +44,32 @@
     .fehler { color: #b00020; font-weight: bold; }
     #messwert { margin: 4px; padding: 6px; font-size: 15px; }
     #csv { width: auto; margin: 6px; padding: 6px 16px; }
+    .legende { background: #fff; padding: 6px 10px; border-radius: 8px; font-size: 12px; color: #111; }
+    .legende .balken { height: 10px; width: 150px; margin: 4px 0; }
+    .legende .skala { display: flex; justify-content: space-between; }
+    .legende .grau { display: inline-block; width: 10px; height: 10px; background: #888; margin-right: 4px; }
   </style>
 </head>
 <body>
-<div class="seite">
+<h1 class="nur-screenreader">DWD Wetterauswertung</h1>
+<main class="seite">
 
   <form id="formular" class="daten">
     <h2>Daten</h2>
-    <label>Von … Bis …
+    <label>Von
       <input type="date" name="von" value="1990-01-01" required>
+    </label>
+    <label>Bis
       <input type="date" name="bis" value="2010-12-31" required>
     </label>
-    <label>Granularität
+    <fieldset class="gruppe">
+      <legend>Granularität</legend>
       <div class="radios">
         <label><input type="radio" name="stufe" value="tag"> Tag</label>
         <label><input type="radio" name="stufe" value="monat"> Monat</label>
         <label><input type="radio" name="stufe" value="jahr" checked> Jahr</label>
       </div>
-    </label>
+    </fieldset>
     <label>Zeitfenster
       <select name="zeitfenster">
         <option value="">ganzjährig</option>
@@ -74,32 +88,35 @@
     <input type="hidden" name="lat" id="lat">
     <input type="hidden" name="lon" id="lon">
     <button type="submit">Auswerten</button>
-    <p id="meldung"></p>
+    <p id="meldung" aria-live="polite"></p>
   </form>
 
   <div>
     <div class="ergebnis">
       <h2>Ergebnis</h2>
-      <div id="ergebnis">Wähle einen Ort (Eingabe oder Klick auf die Karte) und starte die Auswertung.</div>
+      <div id="ergebnis" aria-live="polite">Wähle einen Ort (Eingabe oder Klick auf die Karte) und starte die Auswertung.</div>
     </div>
 
-    <div class="reiter">
-      <button type="button" class="aktiv" data-panel="karte-panel">Karte</button>
-      <button type="button" data-panel="grafik-panel">Grafisch</button>
-      <button type="button" data-panel="tabelle-panel">Tabelle</button>
+    <div class="reiter" role="group" aria-label="Ansicht wählen">
+      <button type="button" class="aktiv" data-panel="karte-panel" aria-pressed="true">Karte</button>
+      <button type="button" data-panel="grafik-panel" aria-pressed="false">Grafisch</button>
+      <button type="button" data-panel="tabelle-panel" aria-pressed="false">Tabelle</button>
     </div>
 
-    <div id="karte-panel" class="panel aktiv"><div id="karte"></div></div>
+    <div id="karte-panel" class="panel aktiv">
+      <div id="karte" role="region" aria-label="Karte mit Wetterstationen. Die Werte stehen auch in der Tabelle."></div>
+    </div>
 
     <div id="grafik-panel" class="panel">
-      <select id="messwert">
+      <select id="messwert" aria-label="Messwert für das Diagramm">
         <option value="1">Ø Temperatur (°C)</option>
         <option value="2">Maximum (°C)</option>
         <option value="3">Minimum (°C)</option>
         <option value="4">Niederschlag (mm)</option>
         <option value="5">Sonnenscheindauer (h)</option>
       </select>
-      <canvas id="diagramm" height="120"></canvas>
+      <canvas id="diagramm" height="120" role="img"
+              aria-label="Diagramm der Messwerte. Die Werte stehen auch in der Tabelle."></canvas>
     </div>
 
     <div id="tabelle-panel" class="panel">
@@ -107,7 +124,7 @@
       <table id="tabelle"></table>
     </div>
   </div>
-</div>
+</main>
 
 <script>
 const form = document.getElementById("formular");
@@ -135,8 +152,13 @@ document.getElementById("ort").addEventListener("input", () => {
 
 document.querySelectorAll(".reiter button").forEach(knopf => {
   knopf.addEventListener("click", () => {
-    document.querySelectorAll(".reiter button, .panel").forEach(x => x.classList.remove("aktiv"));
+    document.querySelectorAll(".reiter button").forEach(k => {
+      k.classList.remove("aktiv");
+      k.setAttribute("aria-pressed", "false");
+    });
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("aktiv"));
     knopf.classList.add("aktiv");
+    knopf.setAttribute("aria-pressed", "true");
     document.getElementById(knopf.dataset.panel).classList.add("aktiv");
     if (knopf.dataset.panel === "karte-panel") karte.invalidateSize();
     if (knopf.dataset.panel === "grafik-panel" && letzteDaten) zeigeDiagramm(letzteDaten.zeilen);
@@ -178,7 +200,7 @@ function zeigeErgebnis(daten) {
 
   document.getElementById("ergebnis").innerHTML =
     `${z.length} Zeiträume von ${form.von.value} bis ${form.bis.value}, ` +
-        `Stationen (nach Entfernung gewichtet): ${daten.stationen.map(s => `${s.name} (${s.km} km)`).join(", ")}` +
+    `Stationen (nach Entfernung gewichtet): ${daten.stationen.map(s => `${s.name} (${s.km} km)`).join(", ")}` +
     (daten.fallback ? ` <b>Hinweis: Keine Station im Umkreis, es wurden die nächstgelegenen verwendet.</b>` : "") +
     `<div class="kacheln">` +
     `<div class="kachel">Ø Temperatur<b>${mittel} °C</b></div>` +
@@ -192,7 +214,7 @@ function zeigeTabelle(zeilen) {
   const kopf = ["Zeitraum", "Ø Temp. °C", "Max °C", "Min °C", "Niederschlag mm", "Sonne h"];
   const fmt = v => v === null ? "–" : v;
   document.getElementById("tabelle").innerHTML =
-    "<tr>" + kopf.map(k => `<th>${k}</th>`).join("") + "</tr>" +
+    "<tr>" + kopf.map(k => `<th scope="col">${k}</th>`).join("") + "</tr>" +
     zeilen.map(r => "<tr>" + r.map(v => `<td>${fmt(v)}</td>`).join("") + "</tr>").join("");
 }
 
@@ -213,71 +235,4 @@ function trend(zeilen, spalte) {
   punkte.forEach(p => { sxy += (p[0] - mx) * (p[1] - my); sxx += (p[0] - mx) ** 2; });
   if (sxx === 0) return null;
   const b = sxy / sxx, a = my - b * mx;
-  return { steigung: b, linie: zeilen.map(r => Math.round((a + b * zeitwert(r[0])) * 100) / 100) };
-}
-
-function zeigeDiagramm(zeilen) {
-  if (chart) chart.destroy();
-  const wahl = document.getElementById("messwert");
-  const spalte = Number(wahl.value);
-  const t = trend(zeilen, spalte);
-  const datensaetze = [{
-    label: wahl.options[wahl.selectedIndex].text,
-    data: zeilen.map(r => r[spalte]),
-    borderColor: "#d9381e", backgroundColor: "rgba(60,110,200,0.5)", pointRadius: 1,
-  }];
-  if (t) {
-    datensaetze.push({
-      type: "line", label: "Trend (lineare Regression)", data: t.linie,
-      borderColor: "#111", borderDash: [6, 4], pointRadius: 0, fill: false,
-    });
-  }
-  chart = new Chart(document.getElementById("diagramm"), {
-    type: spalte >= 4 ? "bar" : "line",
-    data: { labels: zeilen.map(r => r[0]), datasets: datensaetze },
-  });
-}
-document.getElementById("messwert").addEventListener("change", () => {
-  if (letzteDaten) zeigeDiagramm(letzteDaten.zeilen);
-});
-
-document.getElementById("csv").addEventListener("click", () => {
-  if (!letzteDaten) return;
-  const kopf = "Zeitraum;Temp_mittel;Temp_max;Temp_min;Niederschlag_mm;Sonne_h";
-  const zeilen = letzteDaten.zeilen.map(r =>
-    r.map(v => v === null ? "" : String(v).replace(".", ",")).join(";"));
-  const blob = new Blob(["\ufeff" + [kopf, ...zeilen].join("\n")],
-                        { type: "text/csv;charset=utf-8" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "wetterauswertung.csv";
-  a.click();
-});
-
-function farbe(temp, min, max) {
-  if (temp === null || temp === undefined) return "#888";
-  const anteil = max === min ? 0.5 : (temp - min) / (max - min);
-  return `hsl(${Math.round(220 - anteil * 220)}, 80%, 50%)`;
-}
-
-function zeigeKarte(daten) {
-  ebene.clearLayers();
-  const temps = daten.stationen.map(s => s.temp).filter(t => t !== null && t !== undefined);
-  const min = Math.min(...temps), max = Math.max(...temps);
-
-  L.circle([daten.breite, daten.laenge], { radius: daten.radius * 1000, color: "#3b5fa8",
-    weight: 1, fillOpacity: 0.05 }).addTo(ebene);
-  L.marker([daten.breite, daten.laenge]).addTo(ebene).bindPopup("Gewählter Ort");
-
-  daten.stationen.forEach(s => {
-    L.circleMarker([s.breite, s.laenge], { radius: 11, color: "#222", weight: 1,
-      fillColor: farbe(s.temp, min, max), fillOpacity: 0.9 })
-      .addTo(ebene)
-      .bindTooltip(`${s.name}: ${s.temp ?? "–"} °C (${s.km} km)`);
-  });
-  karte.invalidateSize();
-  karte.fitBounds(L.circle([daten.breite, daten.laenge], { radius: daten.radius * 1000 }).getBounds());
-}
-</script>
-</body>
-</html>
+  return {

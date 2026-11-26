@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: http://127.0.0.1:5000/api/auswertung?lat=51.5&lon=7.5&von=2000-01-01&bis=2005-12-31&stufe=jahr&radius=15
+  url: "{{baseUrl}}/api/auswertung?lat=51.5&lon=7.5&von=2000-01-01&bis=2005-12-31&stufe=jahr&radius=15"
   params:
     - name: lat
       value: "51.5"
