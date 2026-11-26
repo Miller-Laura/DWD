@@ -48,10 +48,33 @@
     .legende .balken { height: 10px; width: 150px; margin: 4px 0; }
     .legende .skala { display: flex; justify-content: space-between; }
     .legende .grau { display: inline-block; width: 10px; height: 10px; background: #888; margin-right: 4px; }
+
+        .werkzeuge { display: flex; gap: 8px; padding: 12px 24px 0; }
+    .werkzeuge button { width: auto; padding: 6px 16px; font-size: 14px; }
+    body.kontrast { background: #000; color: #fff; color-scheme: dark; }
+    body.kontrast .daten, body.kontrast .ergebnis, body.kontrast .panel,
+    body.kontrast .kachel, body.kontrast table { background: #000; color: #fff; border: 2px solid #fff; }
+    body.kontrast td, body.kontrast th { border-bottom: 1px solid #fff; }
+    body.kontrast button { background: #ffeb00; color: #000; border: 2px solid #fff; }
+    body.kontrast .reiter button { background: #000; color: #fff; }
+    body.kontrast .reiter button.aktiv { background: #ffeb00; color: #000; }
+    body.kontrast input, body.kontrast select { color: #fff; border-bottom: 2px solid #fff; }
+    body.kontrast canvas { background: #fff; }
+    body.kontrast .fehler { color: #ff9e9e; }
+    body.kontrast :focus-visible { outline-color: #ffeb00; }
+    body.gross .daten label, body.gross .gruppe legend, body.gross .daten input,
+    body.gross .daten select, body.gross .radios, body.gross #meldung,
+    body.gross #ergebnis, body.gross td, body.gross th { font-size: 20px; }
+    body.gross .kachel { font-size: 18px; }
+    body.gross .kachel b { font-size: 26px; }
   </style>
 </head>
 <body>
 <h1 class="nur-screenreader">DWD Wetterauswertung</h1>
+<div class="werkzeuge">
+  <button type="button" id="kontrast" aria-pressed="false">Hoher Kontrast</button>
+  <button type="button" id="schrift" aria-pressed="false">Größere Schrift</button>
+</div>
 <main class="seite">
 
   <form id="formular" class="daten">
@@ -235,4 +258,94 @@ function trend(zeilen, spalte) {
   punkte.forEach(p => { sxy += (p[0] - mx) * (p[1] - my); sxx += (p[0] - mx) ** 2; });
   if (sxx === 0) return null;
   const b = sxy / sxx, a = my - b * mx;
-  return {
+  return { steigung: b, linie: zeilen.map(r => Math.round((a + b * zeitwert(r[0])) * 100) / 100) };
+}
+
+function zeigeDiagramm(zeilen) {
+  if (chart) chart.destroy();
+  const wahl = document.getElementById("messwert");
+  const spalte = Number(wahl.value);
+  const t = trend(zeilen, spalte);
+  const datensaetze = [{
+    label: wahl.options[wahl.selectedIndex].text,
+    data: zeilen.map(r => r[spalte]),
+    borderColor: "#d9381e", backgroundColor: "rgba(60,110,200,0.5)", pointRadius: 1,
+  }];
+  if (t) {
+    datensaetze.push({
+      type: "line", label: "Trend (lineare Regression)", data: t.linie,
+      borderColor: "#111", borderDash: [6, 4], pointRadius: 0, fill: false,
+    });
+  }
+  chart = new Chart(document.getElementById("diagramm"), {
+    type: spalte >= 4 ? "bar" : "line",
+    data: { labels: zeilen.map(r => r[0]), datasets: datensaetze },
+  });
+}
+document.getElementById("messwert").addEventListener("change", () => {
+  if (letzteDaten) zeigeDiagramm(letzteDaten.zeilen);
+});
+
+document.getElementById("csv").addEventListener("click", () => {
+  if (!letzteDaten) return;
+  const kopf = "Zeitraum;Temp_mittel;Temp_max;Temp_min;Niederschlag_mm;Sonne_h";
+  const zeilen = letzteDaten.zeilen.map(r =>
+    r.map(v => v === null ? "" : String(v).replace(".", ",")).join(";"));
+  const blob = new Blob(["\ufeff" + [kopf, ...zeilen].join("\n")],
+                        { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wetterauswertung.csv";
+  a.click();
+});
+
+const TEMP_MIN = -5, TEMP_MAX = 25;
+
+function farbe(temp) {
+  if (temp === null || temp === undefined) return "#888";
+  const anteil = Math.min(1, Math.max(0, (temp - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)));
+  return `hsl(${Math.round(220 - anteil * 220)}, 80%, 50%)`;
+}
+
+const legende = L.control({ position: "bottomright" });
+legende.onAdd = function () {
+  const div = L.DomUtil.create("div", "legende");
+  const stufen = [];
+  for (let i = 0; i <= 10; i++) stufen.push(farbe(TEMP_MIN + (TEMP_MAX - TEMP_MIN) * i / 10));
+  div.innerHTML =
+    `<b>Ø Temperatur</b>` +
+    `<div class="balken" style="background: linear-gradient(to right, ${stufen.join(",")})"></div>` +
+    `<div class="skala"><span>${TEMP_MIN} °C</span><span>${(TEMP_MIN + TEMP_MAX) / 2} °C</span><span>${TEMP_MAX} °C</span></div>` +
+    `<div><span class="grau"></span>kein Messwert</div>`;
+  return div;
+};
+legende.addTo(karte);
+
+function zeigeKarte(daten) {
+  ebene.clearLayers();
+
+  L.circle([daten.breite, daten.laenge], { radius: daten.radius * 1000, color: "#3b5fa8",
+    weight: 1, fillOpacity: 0.05 }).addTo(ebene);
+  L.marker([daten.breite, daten.laenge]).addTo(ebene).bindPopup("Gewählter Ort");
+
+  daten.stationen.forEach(s => {
+    L.circleMarker([s.breite, s.laenge], { radius: 11, color: "#222", weight: 1,
+      fillColor: farbe(s.temp), fillOpacity: 0.9 })
+      .addTo(ebene)
+      .bindTooltip(`${s.name}: ${s.temp ?? "–"} °C (${s.km} km)`);
+  });
+  karte.invalidateSize();
+  karte.fitBounds(L.circle([daten.breite, daten.laenge], { radius: daten.radius * 1000 }).getBounds());
+}
+function umschalter(id, klasse) {
+  const knopf = document.getElementById(id);
+  knopf.addEventListener("click", () => {
+    const an = document.body.classList.toggle(klasse);
+    knopf.setAttribute("aria-pressed", String(an));
+  });
+}
+umschalter("kontrast", "kontrast");
+umschalter("schrift", "gross");
+</script>
+</body>
+</html>
