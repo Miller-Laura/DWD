@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>DWD Wetterauswertung</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='leaflet/leaflet.css') }}">
+  <script src="{{ url_for('static', filename='leaflet/leaflet.js') }}"></script>
+  <script src="{{ url_for('static', filename='chart.umd.js') }}"></script>
+  <style>
+    body { margin: 0; background: #97a3b6; font-family: sans-serif; color: #111; }
+    .seite { display: grid; grid-template-columns: 300px 1fr; gap: 24px; padding: 24px; }
+    h2 { text-align: center; text-decoration: underline; margin: 0 0 18px; }
+    .daten { background: #cfdffa; border-radius: 36px; padding: 24px; align-self: start; }
+    .daten label { display: block; font-size: 15px; margin-bottom: 16px; }
+    .daten input[type=text], .daten input[type=date], .daten input[type=number], .daten select {
+      width: 100%; box-sizing: border-box; margin-top: 4px; padding: 6px;
+      border: 0; border-bottom: 2px solid #111; background: transparent; font-size: 15px; }
+    .radios { display: flex; justify-content: space-between; margin-top: 6px; font-size: 14px; }
+    .radios label { display: inline; margin: 0; }
+    button { width: 100%; padding: 10px; border: 0; border-radius: 12px; background: #3b5fa8;
+             color: #fff; font-size: 16px; cursor: pointer; }
+    .ergebnis { background: #b8cbea; border-radius: 16px; padding: 16px 24px; min-height: 90px; }
+    .ergebnis h2 { margin-bottom: 8px; }
+    .kacheln { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+    .kachel { background: #e3ecfb; border-radius: 10px; padding: 8px 14px; font-size: 14px; }
+    .kachel b { display: block; font-size: 20px; }
+    .reiter { display: flex; margin-top: 24px; }
+    .reiter button { width: auto; border-radius: 8px 8px 0 0; background: #b8cbea; color: #111;
+                     padding: 6px 28px; border: 1px solid #7d92b8; font-size: 16px; }
+    .reiter button.aktiv { background: #e3ecfb; font-weight: bold; }
+    .panel { display: none; background: #b8cbea; border-radius: 0 16px 16px 16px; padding: 8px; }
+    .panel.aktiv { display: block; }
+    #karte { height: 420px; border-radius: 12px; }
+    table { border-collapse: collapse; width: 100%; background: #e3ecfb; }
+    td, th { border-bottom: 1px solid #b8cbea; padding: 4px 8px; text-align: right; }
+    td:first-child, th:first-child { text-align: left; }
+    #meldung { margin: 8px 0 0; font-size: 14px; }
+    .fehler { color: #b00020; font-weight: bold; }
+    #messwert { margin: 4px; padding: 6px; font-size: 15px; }
+    #csv { width: auto; margin: 6px; padding: 6px 16px; }
+  </style>
+</head>
+<body>
+<div class="seite">
+
+  <form id="formular" class="daten">
+    <h2>Daten</h2>
+    <label>Von … Bis …
+      <input type="date" name="von" value="1990-01-01" required>
+      <input type="date" name="bis" value="2010-12-31" required>
+    </label>
+    <label>Granularität
+      <div class="radios">
+        <label><input type="radio" name="stufe" value="tag"> Tag</label>
+        <label><input type="radio" name="stufe" value="monat"> Monat</label>
+        <label><input type="radio" name="stufe" value="jahr" checked> Jahr</label>
+      </div>
+    </label>
+    <label>Zeitfenster
+      <select name="zeitfenster">
+        <option value="">ganzjährig</option>
+        <option value="fruehling">Frühling (Mär–Mai)</option>
+        <option value="sommer">Sommer (Jun–Aug)</option>
+        <option value="herbst">Herbst (Sep–Nov)</option>
+        <option value="winter">Winter (Dez–Feb)</option>
+      </select>
+    </label>
+    <label>Ortschaft / Adresse
+      <input type="text" id="ort" name="ort" value="Iserlohn" required>
+    </label>
+    <label>Umkreis (km)
+      <input type="number" name="radius" value="15" min="1" max="100">
+    </label>
+    <input type="hidden" name="lat" id="lat">
+    <input type="hidden" name="lon" id="lon">
+    <button type="submit">Auswerten</button>
+    <p id="meldung"></p>
+  </form>
+
+  <div>
+    <div class="ergebnis">
+      <h2>Ergebnis</h2>
+      <div id="ergebnis">Wähle einen Ort (Eingabe oder Klick auf die Karte) und starte die Auswertung.</div>
+    </div>
+
+    <div class="reiter">
+      <button type="button" class="aktiv" data-panel="karte-panel">Karte</button>
+      <button type="button" data-panel="grafik-panel">Grafisch</button>
+      <button type="button" data-panel="tabelle-panel">Tabelle</button>
+    </div>
+
+    <div id="karte-panel" class="panel aktiv"><div id="karte"></div></div>
+
+    <div id="grafik-panel" class="panel">
+      <select id="messwert">
+        <option value="1">Ø Temperatur (°C)</option>
+        <option value="2">Maximum (°C)</option>
+        <option value="3">Minimum (°C)</option>
+        <option value="4">Niederschlag (mm)</option>
+        <option value="5">Sonnenscheindauer (h)</option>
+      </select>
+      <canvas id="diagramm" height="120"></canvas>
+    </div>
+
+    <div id="tabelle-panel" class="panel">
+      <button type="button" id="csv">Tabelle als CSV</button>
+      <table id="tabelle"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const form = document.getElementById("formular");
+const meldung = document.getElementById("meldung");
+let letzteDaten = null, chart = null;
+
+const karte = L.map("karte").setView([51.2, 10.4], 6);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  { maxZoom: 18, attribution: "© OpenStreetMap-Mitwirkende" }).addTo(karte);
+const ebene = L.layerGroup().addTo(karte);
+let klickMarker = null;
+
+karte.on("click", e => {
+  const { lat, lng } = e.latlng;
+  document.getElementById("lat").value = lat;
+  document.getElementById("lon").value = lng;
+  document.getElementById("ort").value = `Kartenpunkt ${lat.toFixed(3)}, ${lng.toFixed(3)}`;
+  if (klickMarker) klickMarker.remove();
+  klickMarker = L.marker(e.latlng).addTo(karte);
+});
+document.getElementById("ort").addEventListener("input", () => {
+  document.getElementById("lat").value = "";
+  document.getElementById("lon").value = "";
+});
+
+document.querySelectorAll(".reiter button").forEach(knopf => {
+  knopf.addEventListener("click", () => {
+    document.querySelectorAll(".reiter button, .panel").forEach(x => x.classList.remove("aktiv"));
+    knopf.classList.add("aktiv");
+    document.getElementById(knopf.dataset.panel).classList.add("aktiv");
+    if (knopf.dataset.panel === "karte-panel") karte.invalidateSize();
+    if (knopf.dataset.panel === "grafik-panel" && letzteDaten) zeigeDiagramm(letzteDaten.zeilen);
+  });
+});
+
+form.addEventListener("submit", async e => {
+  e.preventDefault();
+  meldung.className = "";
+  meldung.textContent = "Lade Daten … (beim ersten Mal dauert das etwas)";
+  const antwort = await fetch("/api/auswertung?" + new URLSearchParams(new FormData(form)));
+  const daten = await antwort.json();
+  if (!antwort.ok) {
+    meldung.className = "fehler";
+    meldung.textContent = daten.fehler;
+    return;
+  }
+  meldung.textContent = "";
+  letzteDaten = daten;
+  zeigeErgebnis(daten);
+  zeigeTabelle(daten.zeilen);
+  zeigeKarte(daten);
+  if (document.getElementById("grafik-panel").classList.contains("aktiv")) zeigeDiagramm(daten.zeilen);
+});
+
+function zeigeErgebnis(daten) {
+  const z = daten.zeilen;
+  const temps = z.map(r => r[1]).filter(v => v !== null);
+  const regen = z.map(r => r[4]).filter(v => v !== null);
+  const mittel = temps.length ? (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1) : "–";
+  const summe = regen.length ? Math.round(regen.reduce((a, b) => a + b, 0)) : "–";
+  const warm = z.filter(r => r[1] !== null).sort((a, b) => b[1] - a[1])[0];
+
+  const t = trend(z, 1);
+  const spanne = z.length > 1 ? zeitwert(z[z.length - 1][0]) - zeitwert(z[0][0]) : 0;
+  const trendText = (t && spanne >= 10)
+    ? (t.steigung >= 0 ? "+" : "") + (t.steigung * 10).toFixed(2) + " °C / Jahrzehnt"
+    : "mind. 10 Jahre nötig";
+
+  document.getElementById("ergebnis").innerHTML =
+    `${z.length} Zeiträume von ${form.von.value} bis ${form.bis.value}, ` +
+        `Stationen (nach Entfernung gewichtet): ${daten.stationen.map(s => `${s.name} (${s.km} km)`).join(", ")}` +
+    (daten.fallback ? ` <b>Hinweis: Keine Station im Umkreis, es wurden die nächstgelegenen verwendet.</b>` : "") +
+    `<div class="kacheln">` +
+    `<div class="kachel">Ø Temperatur<b>${mittel} °C</b></div>` +
+    `<div class="kachel">Niederschlag gesamt<b>${summe} mm</b></div>` +
+    `<div class="kachel">Wärmster Zeitraum<b>${warm ? warm[0] + " (" + warm[1] + " °C)" : "–"}</b></div>` +
+    `<div class="kachel">Klimatrend (Temperatur)<b>${trendText}</b></div>` +
+    `</div>`;
+}
+
+function zeigeTabelle(zeilen) {
+  const kopf = ["Zeitraum", "Ø Temp. °C", "Max °C", "Min °C", "Niederschlag mm", "Sonne h"];
+  const fmt = v => v === null ? "–" : v;
+  document.getElementById("tabelle").innerHTML =
+    "<tr>" + kopf.map(k => `<th>${k}</th>`).join("") + "</tr>" +
+    zeilen.map(r => "<tr>" + r.map(v => `<td>${fmt(v)}</td>`).join("") + "</tr>").join("");
+}
+
+function zeitwert(label) {
+  const t = label.split("-").map(Number);
+  if (t.length === 1) return t[0];
+  if (t.length === 2) return t[0] + (t[1] - 1) / 12;
+  return t[0] + (Date.UTC(t[0], t[1] - 1, t[2]) - Date.UTC(t[0], 0, 1)) / (365.25 * 86400000);
+}
+
+function trend(zeilen, spalte) {
+  const punkte = zeilen.filter(r => r[spalte] !== null).map(r => [zeitwert(r[0]), r[spalte]]);
+  if (punkte.length < 3) return null;
+  const n = punkte.length;
+  const mx = punkte.reduce((s, p) => s + p[0], 0) / n;
+  const my = punkte.reduce((s, p) => s + p[1], 0) / n;
+  let sxy = 0, sxx = 0;
+  punkte.forEach(p => { sxy += (p[0] - mx) * (p[1] - my); sxx += (p[0] - mx) ** 2; });
+  if (sxx === 0) return null;
+  const b = sxy / sxx, a = my - b * mx;
+  return { steigung: b, linie: zeilen.map(r => Math.round((a + b * zeitwert(r[0])) * 100) / 100) };
+}
+
+function zeigeDiagramm(zeilen) {
+  if (chart) chart.destroy();
+  const wahl = document.getElementById("messwert");
+  const spalte = Number(wahl.value);
+  const t = trend(zeilen, spalte);
+  const datensaetze = [{
+    label: wahl.options[wahl.selectedIndex].text,
+    data: zeilen.map(r => r[spalte]),
+    borderColor: "#d9381e", backgroundColor: "rgba(60,110,200,0.5)", pointRadius: 1,
+  }];
+  if (t) {
+    datensaetze.push({
+      type: "line", label: "Trend (lineare Regression)", data: t.linie,
+      borderColor: "#111", borderDash: [6, 4], pointRadius: 0, fill: false,
+    });
+  }
+  chart = new Chart(document.getElementById("diagramm"), {
+    type: spalte >= 4 ? "bar" : "line",
+    data: { labels: zeilen.map(r => r[0]), datasets: datensaetze },
+  });
+}
+document.getElementById("messwert").addEventListener("change", () => {
+  if (letzteDaten) zeigeDiagramm(letzteDaten.zeilen);
+});
+
+document.getElementById("csv").addEventListener("click", () => {
+  if (!letzteDaten) return;
+  const kopf = "Zeitraum;Temp_mittel;Temp_max;Temp_min;Niederschlag_mm;Sonne_h";
+  const zeilen = letzteDaten.zeilen.map(r =>
+    r.map(v => v === null ? "" : String(v).replace(".", ",")).join(";"));
+  const blob = new Blob(["\ufeff" + [kopf, ...zeilen].join("\n")],
+                        { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "wetterauswertung.csv";
+  a.click();
+});
+
+function farbe(temp, min, max) {
+  if (temp === null || temp === undefined) return "#888";
+  const anteil = max === min ? 0.5 : (temp - min) / (max - min);
+  return `hsl(${Math.round(220 - anteil * 220)}, 80%, 50%)`;
+}
+
+function zeigeKarte(daten) {
+  ebene.clearLayers();
+  const temps = daten.stationen.map(s => s.temp).filter(t => t !== null && t !== undefined);
+  const min = Math.min(...temps), max = Math.max(...temps);
+
+  L.circle([daten.breite, daten.laenge], { radius: daten.radius * 1000, color: "#3b5fa8",
+    weight: 1, fillOpacity: 0.05 }).addTo(ebene);
+  L.marker([daten.breite, daten.laenge]).addTo(ebene).bindPopup("Gewählter Ort");
+
+  daten.stationen.forEach(s => {
+    L.circleMarker([s.breite, s.laenge], { radius: 11, color: "#222", weight: 1,
+      fillColor: farbe(s.temp, min, max), fillOpacity: 0.9 })
+      .addTo(ebene)
+      .bindTooltip(`${s.name}: ${s.temp ?? "–"} °C (${s.km} km)`);
+  });
+  karte.invalidateSize();
+  karte.fitBounds(L.circle([daten.breite, daten.laenge], { radius: daten.radius * 1000 }).getBounds());
+}
+</script>
+</body>
+</html>

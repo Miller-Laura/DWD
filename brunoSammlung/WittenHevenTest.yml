@@ -1,0 +1,40 @@
+info:
+  name: WittenHevenTest
+  type: http
+  seq: 2
+
+http:
+  method: GET
+  url: http://127.0.0.1:5000/api/auswertung?ort=Witten Heven&von=2010-12-01&bis=2011-11-30&stufe=monat&radius=15
+  params:
+    - name: ort
+      value: Witten%20Heven
+      type: query
+    - name: von
+      value: 2010-12-01
+      type: query
+    - name: bis
+      value: 2011-11-30
+      type: query
+    - name: stufe
+      value: monat
+      type: query
+    - name: radius
+      value: "15"
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("genau 12 Monatswerte", function () {
+          expect(res.body.zeilen.length).to.equal(12);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

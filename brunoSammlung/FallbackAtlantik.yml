@@ -1,0 +1,44 @@
+info:
+  name: FallbackAtlantik
+  type: http
+  seq: 4
+
+http:
+  method: GET
+  url: http://127.0.0.1:5000/api/auswertung?lat=45&lon=-10&von=2000-01-01&bis=2005-12-31&stufe=jahr&radius=15
+  params:
+    - name: lat
+      value: "45"
+      type: query
+    - name: lon
+      value: "-10"
+      type: query
+    - name: von
+      value: 2000-01-01
+      type: query
+    - name: bis
+      value: 2005-12-31
+      type: query
+    - name: stufe
+      value: jahr
+      type: query
+    - name: radius
+      value: "15"
+      type: query
+  auth: inherit
+
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test("Fallback aktiv, 3 Stationen", function () {
+          expect(res.body.fallback).to.equal(true);
+          expect(res.body.stationen.length).to.equal(3);
+        });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false
